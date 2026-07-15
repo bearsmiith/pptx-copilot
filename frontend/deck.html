@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>pptx copilot</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px system-ui,sans-serif; color:#1f2a44; background:#f4f6fa; }
+  header { padding:12px 20px; background:#1f2a44; color:#fff; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .badge { font-size:12px; padding:2px 9px; border-radius:10px; background:#2f6fed; }
+  .badge.warn { background:#b4690e; }
+  .badge.sid { background:#5b6472; }
+  main { display:grid; grid-template-columns: 460px 1fr; gap:16px; padding:16px; align-items:start; }
+  .panel { background:#fff; border:1px solid #d7dbe3; border-radius:10px; padding:14px; }
+  textarea, input[type=text] { font:13.5px system-ui; border:1px solid #d7dbe3; border-radius:7px; padding:7px 9px; width:100%; }
+  textarea.mono { font:12.5px ui-monospace,monospace; resize:vertical; }
+  #prompt { height:90px; font-size:14px; }
+  button { font:600 13.5px system-ui; padding:8px 13px; border:0; border-radius:8px; background:#2f6fed; color:#fff; cursor:pointer; }
+  button.sec { background:#e8ecf4; color:#1f2a44; }
+  button.ok { background:#2e9e5b; }
+  button.mini { padding:4px 9px; font-size:12px; background:#eef1f6; color:#1f2a44; }
+  button:disabled { opacity:.45; cursor:default; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; align-items:center; }
+  h3 { margin:14px 0 6px; font-size:12.5px; text-transform:uppercase; letter-spacing:.05em; color:#5b6472; }
+  h3:first-child { margin-top:2px; }
+  /* stage indicator */
+  .stages { display:flex; gap:0; margin:10px 0 4px; }
+  .stage-step { flex:1; text-align:center; font-size:12px; padding:7px 4px; background:#eef1f6; color:#8a93a0; border-right:2px solid #fff; }
+  .stage-step:first-child { border-radius:8px 0 0 8px; }
+  .stage-step:last-child { border-radius:0 8px 8px 0; border-right:0; }
+  .stage-step.active { background:#2f6fed; color:#fff; font-weight:700; }
+  .stage-step.done { background:#cfe3d6; color:#2e6e47; }
+  /* progress bar */
+  #progressbar { display:none; margin-top:10px; padding:9px 12px; background:#eef3ff; border:1px solid #cdddff; border-radius:8px; font-size:13px; color:#1f2a44; }
+  #progressbar .spin { display:inline-block; width:12px; height:12px; border:2px solid #2f6fed; border-top-color:transparent; border-radius:50%; animation:sp 0.8s linear infinite; vertical-align:-2px; margin-right:8px;}
+  @keyframes sp { to { transform: rotate(360deg); } }
+  #status { font-size:13px; color:#5b6472; min-height:18px; margin-top:6px; white-space:pre-wrap; }
+  .gallery { display:flex; gap:6px; flex-wrap:wrap; }
+  .card { border:1px solid #e3e7ee; border-radius:9px; padding:10px; margin-bottom:10px; background:#fafbfd; }
+  .card .head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; gap:6px;}
+  .kind { font-size:11px; color:#fff; background:#8a93a0; border-radius:8px; padding:2px 8px; white-space:nowrap;}
+  .kind.confirmed { background:#2e9e5b; }
+  .kind.draft { background:#b4690e; }
+  .field { margin:6px 0; }
+  .field label { display:block; font-size:11.5px; color:#5b6472; margin-bottom:3px; }
+  .qbox { background:#fff8e6; border:1px solid #e8d49a; border-radius:8px; padding:10px 12px; margin:8px 0; font-size:13px; }
+  .qbox b { display:block; margin-bottom:4px; }
+  details.adv summary, details.hist summary { cursor:pointer; font-size:12px; color:#5b6472; margin:8px 0 4px; }
+  #deckjson { height:220px; }
+  .slide-wrap { margin-bottom:16px; }
+  .slide-wrap .cap { font-size:12px; color:#5b6472; margin-bottom:4px; display:flex; gap:8px; align-items:center;}
+  #truerender-out img { width:100%; border:1px solid #d7dbe3; border-radius:8px; margin-bottom:12px; }
+  .hist-item { font-size:12px; padding:3px 0; border-bottom:1px dashed #e3e7ee; color:#3a4356; }
+  .hist-item .hk { display:inline-block; min-width:70px; color:#8a93a0; }
+  #dropzone { margin-top:8px; border:1.5px dashed #b9c2ce; border-radius:8px; padding:8px 11px; font-size:12.5px; color:#5b6472; cursor:pointer; }
+</style>
+</head>
+<body>
+<header>
+  <h1>pptx copilot</h1>
+  <span class="badge" id="modebadge">…</span>
+  <span class="badge sid" id="sidbadge" style="display:none"></span>
+  <span style="font-size:12px;opacity:.8">계획 → 그림 → 완성 단계별 워크플로</span>
+</header>
+<main>
+  <section class="panel">
+    <h3>새 세션</h3>
+    <textarea id="prompt" placeholder="예: TGV 유리기판 기술을 소개하는 5장짜리 발표자료. 구조 단면도와 유기기판 비교 포함."></textarea>
+    <div id="dropzone">📎 파일 첨부 — 클릭/드래그 (이미지·SVG·PDF·pptx·docx·xlsx·텍스트)
+      <input type="file" id="fileinput" multiple style="display:none"/></div>
+    <div id="filechips" class="row"></div>
+    <div class="row">
+      <button id="newsession">① 계획 생성</button>
+      <span style="font-size:12px;color:#5b6472">먼저 아웃라인을 만들고, 컨펌 후 그림을 그립니다</span>
+    </div>
+    <h3>갤러리 (완성 상태로 바로 로드)</h3>
+    <div class="gallery" id="gallery"></div>
+
+    <div class="stages" id="stages" style="display:none">
+      <div class="stage-step" data-st="plan">1 · 계획</div>
+      <div class="stage-step" data-st="figures">2 · 그림</div>
+      <div class="stage-step" data-st="final">3 · 완성</div>
+    </div>
+    <div id="progressbar"><span class="spin"></span><span id="progresstext"></span></div>
+    <div id="status"></div>
+
+    <div id="stagearea"></div>
+
+    <details class="hist" id="histbox" style="display:none">
+      <summary>세션 기록 (LLM이 참조하는 하네스)</summary>
+      <div id="histlist"></div>
+    </details>
+  </section>
+
+  <section>
+    <div class="panel">
+      <h3>미리보기</h3>
+      <div id="slides"><em style="color:#5b6472">세션을 시작하거나 갤러리를 선택하세요.</em></div>
+    </div>
+    <div class="panel" id="truerender-panel" style="display:none;margin-top:16px;">
+      <h3>실렌더 (실제 pptx)</h3>
+      <div id="truerender-out"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+let S = null;   // current session payload
+const $ = s => document.querySelector(s);
+const status = m => $("#status").textContent = m;
+const esc = s => String(s??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+
+async function post(url, body) {
+  const r = await fetch(url, {method:"POST",
+    headers: body instanceof FormData ? {} : {"Content-Type":"application/json"},
+    body: body instanceof FormData ? body : JSON.stringify(body)});
+  if (!r.ok) throw new Error((await r.text()).slice(0,500));
+  return r.json();
+}
+
+/* ---------- progress ---------- */
+function showProgress(text) {
+  $("#progressbar").style.display = "block";
+  $("#progresstext").textContent = text;
+}
+function hideProgress() { $("#progressbar").style.display = "none"; }
+
+async function pollJob(job_id) {
+  const t0 = Date.now();
+  while (true) {
+    await new Promise(res => setTimeout(res, 2200));
+    const r = await fetch(`/api/job/${job_id}`);
+    if (!r.ok) throw new Error((await r.text()).slice(0,300));
+    const j = await r.json();
+    if (j.status === "done") { hideProgress(); return j; }
+    if (j.status === "error") { hideProgress(); throw new Error(j.error); }
+    showProgress(`${j.progress || "작업 중"} · ${Math.round((Date.now()-t0)/1000)}s`);
+  }
+}
+async function runJob(startPromise) {
+  const {job_id} = await startPromise;
+  showProgress("대기열 등록됨…");
+  const payload = await pollJob(job_id);
+  renderSession(payload);
+}
+
+/* ---------- attachments ---------- */
+let attachments = [];
+const dz = $("#dropzone"), fi = $("#fileinput");
+dz.onclick = () => fi.click();
+dz.ondragover = e => { e.preventDefault(); dz.style.borderColor="#2f6fed"; };
+dz.ondragleave = () => dz.style.borderColor="#b9c2ce";
+dz.ondrop = e => { e.preventDefault(); dz.style.borderColor="#b9c2ce"; addFiles(e.dataTransfer.files); };
+fi.onchange = () => { addFiles(fi.files); fi.value=""; };
+function addFiles(list){ for (const f of list){ if(attachments.length>=8)break; if(f.size>15e6){status(f.name+": 15MB 초과");continue;} attachments.push(f);} renderChips(); }
+function renderChips(){
+  const box=$("#filechips"); box.innerHTML="";
+  attachments.forEach((f,i)=>{ const c=document.createElement("span");
+    c.style.cssText="font-size:12px;background:#eef1f6;border-radius:12px;padding:3px 10px;display:inline-flex;gap:6px;";
+    c.innerHTML=`${esc(f.name)} <b style="cursor:pointer;color:#8a93a0">×</b>`;
+    c.querySelector("b").onclick=()=>{attachments.splice(i,1);renderChips();};
+    box.appendChild(c); });
+}
+
+/* ---------- session rendering ---------- */
+function renderSession(p) {
+  S = p;
+  // badges
+  const llm = p.llm||{};
+  const mb = $("#modebadge");
+  mb.textContent = llm.provider==="mock" ? "MOCK" : `${llm.provider} · ${llm.model||""}`;
+  mb.className = "badge"+(llm.provider==="mock"?" warn":"");
+  const sb = $("#sidbadge");
+  sb.textContent = `세션 #${p.session_num}`;
+  sb.style.display = "inline"; sb.title = "디버깅용 세션 번호";
+  // stages
+  $("#stages").style.display = "flex";
+  const order = ["plan","figures","final"];
+  document.querySelectorAll(".stage-step").forEach(el=>{
+    const st = el.dataset.st;
+    el.className = "stage-step" + (st===p.stage ? " active" :
+      (order.indexOf(st) < order.indexOf(p.stage) ? " done" : ""));
+  });
+  // preview
+  const wrap = $("#slides"); wrap.innerHTML = "";
+  (p.slides_svg||[]).forEach((svg,i)=>{
+    const meta = p.deck ? p.deck.slides[i] : (p.plan?p.plan.slides[i]:null);
+    const st = p.figure_status && p.figure_status[String(i)];
+    const chip = st ? ` <span class="kind ${st}">${st==="confirmed"?"컨펌됨":"초안"}</span>` : "";
+    const d=document.createElement("div"); d.className="slide-wrap";
+    d.innerHTML = `<div class="cap">Slide ${i+1} · ${meta?meta.layout_type:""}${chip}</div>`+svg;
+    wrap.appendChild(d);
+  });
+  // history
+  $("#histbox").style.display = "block";
+  $("#histlist").innerHTML = (p.history||[]).map(e=>
+    `<div class="hist-item"><span class="hk">${e.ts}s · ${esc(e.kind)}</span> ${esc(e.content)}</div>`).join("");
+  // stage area
+  renderStageArea(p);
+}
+
+function renderStageArea(p) {
+  const a = $("#stagearea");
+  if (p.stage === "plan" && p.plan) { renderPlanStage(a, p); return; }
+  if (p.stage === "figures") { renderFiguresStage(a, p); return; }
+  if (p.stage === "final") { renderFinalStage(a, p); return; }
+  a.innerHTML = "";
+}
+
+/* --- stage 1: plan --- */
+function renderPlanStage(a, p) {
+  let html = `<h3>1단계 · 계획 검토</h3>`;
+  if ((p.questions||[]).length)
+    html += `<div class="qbox"><b>🤔 LLM 질문 — 아래 피드백란에 답해주세요</b>${p.questions.map(q=>`· ${esc(q)}`).join("<br>")}</div>`;
+  p.plan.slides.forEach((ps,i)=>{
+    html += `<div class="card"><div class="head"><b style="font-size:13px">Slide ${i+1}</b><span class="kind">${ps.layout_type}</span></div>
+      <div class="field"><label>제목</label><input type="text" data-pp="slides.${i}.title" value="${esc(ps.title)}"/></div>`;
+    if (ps.layout_type==="title")
+      html += `<div class="field"><label>부제</label><input type="text" data-pp="slides.${i}.subtitle" value="${esc(ps.subtitle||"")}"/></div>`;
+    if (ps.bullets)
+      html += `<div class="field"><label>불릿</label><textarea class="mono" rows="3" data-pp="slides.${i}.bullets">${esc(ps.bullets.join("\n"))}</textarea></div>`;
+    if (ps.layout_type==="figure")
+      html += `<div class="field"><label>그림 계획</label><textarea rows="3" data-pp="slides.${i}.figure_plan">${esc(ps.figure_plan||"")}</textarea></div>`;
+    html += `</div>`;
+  });
+  html += `<div class="row"><button class="sec" id="planapply">직접 수정 반영</button></div>
+    <div class="field" style="margin-top:10px"><label>피드백 / 질문 답변 (자연어 → AI가 계획 수정)</label>
+      <textarea id="planfb" rows="2" placeholder="예: 청중은 경영진이야. 비교 슬라이드 하나 추가하고 3장으로 줄여줘."></textarea></div>
+    <div class="row">
+      <button id="planfbbtn">피드백 반영 (AI)</button>
+      <button class="ok" id="planconfirm">계획 컨펌 → 그림 생성 ▶</button>
+    </div>`;
+  a.innerHTML = html;
+  $("#planapply").onclick = async () => {
+    const plan = JSON.parse(JSON.stringify(S.plan));
+    document.querySelectorAll("[data-pp]").forEach(el=>{
+      let v = el.value;
+      if (el.dataset.pp.endsWith(".bullets")) v = v.split("\n").filter(x=>x.trim());
+      const parts = el.dataset.pp.split(".");
+      let o = plan; for (let k=0;k<parts.length-1;k++) o=o[isNaN(parts[k])?parts[k]:+parts[k]];
+      o[parts[parts.length-1]] = v;
+    });
+    try { renderSession(await post(`/api/session/${S.session_num}/plan_update`, {plan})); status("계획 수정 반영됨."); }
+    catch(e){ status("실패: "+e.message); }
+  };
+  $("#planfbbtn").onclick = async () => {
+    const m = $("#planfb").value.trim();
+    if (!m) return status("피드백을 입력하세요.");
+    try { await runJob(post(`/api/session/${S.session_num}/plan_feedback`, {message:m})); status("피드백 반영 완료."); }
+    catch(e){ status("실패: "+e.message); }
+  };
+  $("#planconfirm").onclick = async () => {
+    try { await runJob(post(`/api/session/${S.session_num}/confirm_plan`, {})); status("그림 초안 생성 완료 — 그림별로 검토하세요."); }
+    catch(e){ status("실패: "+e.message); }
+  };
+}
+
+/* --- stage 2: figures --- */
+function renderFiguresStage(a, p) {
+  const figs = Object.keys(p.figure_status||{}).map(Number).sort((x,y)=>x-y);
+  const confirmed = figs.filter(i=>p.figure_status[String(i)]==="confirmed").length;
+  let html = `<h3>2단계 · 그림 검토 (${confirmed}/${figs.length} 컨펌)</h3>`;
+  figs.forEach(i=>{
+    const st = p.figure_status[String(i)];
+    const sl = p.deck.slides[i];
+    html += `<div class="card"><div class="head"><b style="font-size:13px">Slide ${i+1} · ${esc(sl.title)}</b>
+        <span class="kind ${st}">${st==="confirmed"?"컨펌됨":"초안"}</span></div>
+      <div class="field"><label>피드백 (자연어 → AI 재생성)</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" class="figfb" data-i="${i}" placeholder="예: via를 hourglass로, 층 하나 추가"/>
+          <button class="mini figfbbtn" data-i="${i}">수정</button>
+          <button class="mini figok" data-i="${i}" style="background:#cfe3d6;color:#2e6e47" ${st==="confirmed"?"disabled":""}>컨펌</button>
+        </div></div></div>`;
+  });
+  a.innerHTML = html;
+  document.querySelectorAll(".figfbbtn").forEach(b=> b.onclick = async ()=>{
+    const i=+b.dataset.i, m=document.querySelector(`.figfb[data-i="${i}"]`).value.trim();
+    if(!m) return status("피드백을 입력하세요.");
+    try { await runJob(post(`/api/session/${S.session_num}/figure_feedback`, {slide_index:i, message:m})); status(`그림 ${i+1} 수정 완료.`); }
+    catch(e){ status("실패: "+e.message); }
+  });
+  document.querySelectorAll(".figok").forEach(b=> b.onclick = async ()=>{
+    try { renderSession(await post(`/api/session/${S.session_num}/figure_confirm`, {slide_index:+b.dataset.i}));
+      status(S.stage==="final" ? "모든 그림 컨펌 — 완성 단계!" : "컨펌됨."); }
+    catch(e){ status("실패: "+e.message); }
+  });
+}
+
+/* --- stage 3: final --- */
+function renderFinalStage(a, p) {
+  let html = `<h3>3단계 · 완성 — 편집 &amp; 내보내기</h3>`;
+  p.deck.slides.forEach((sl,i)=>{
+    html += `<div class="card"><div class="head"><b style="font-size:13px">Slide ${i+1} · ${esc(sl.title)}</b>
+      <span class="kind">${sl.figure?sl.figure.kind:sl.layout_type}</span></div>
+      <div style="display:flex;gap:6px">
+        <input type="text" class="finedit" data-i="${i}" placeholder="AI 수정 요청 (예: 제목 영어로, via 5개로)"/>
+        <button class="mini fineditbtn" data-i="${i}">AI 수정</button>
+      </div></div>`;
+  });
+  html += `<details class="adv"><summary>고급: Deck JSON 직접 편집</summary>
+    <textarea id="deckjson" class="mono" spellcheck="false">${esc(JSON.stringify(p.deck,null,2))}</textarea>
+    <div class="row"><button class="mini" id="applyjson">JSON 반영</button></div></details>
+    <div class="row" style="margin-top:10px">
+      <button class="ok" id="export">.pptx 내보내기</button>
+      <button class="sec" id="truerender">실렌더(LibreOffice)</button>
+    </div>`;
+  a.innerHTML = html;
+  document.querySelectorAll(".fineditbtn").forEach(b=> b.onclick = async ()=>{
+    const i=+b.dataset.i, m=document.querySelector(`.finedit[data-i="${i}"]`).value.trim();
+    if(!m) return status("요청을 입력하세요.");
+    try { await runJob(post(`/api/session/${S.session_num}/slide_edit`, {slide_index:i, instruction:m})); status(`슬라이드 ${i+1} 수정 완료.`); }
+    catch(e){ status("실패: "+e.message); }
+  });
+  $("#applyjson").onclick = async ()=>{
+    try { renderSession(await post(`/api/session/${S.session_num}/deck_update`, {deck: JSON.parse($("#deckjson").value)})); status("반영됨."); }
+    catch(e){ status("실패: "+e.message); }
+  };
+  $("#export").onclick = async ()=>{
+    status("pptx 생성 중…");
+    const r = await fetch(`/api/session/${S.session_num}/export`, {method:"POST"});
+    if(!r.ok) return status("실패: "+(await r.text()).slice(0,200));
+    const blob = await r.blob();
+    const el=document.createElement("a"); el.href=URL.createObjectURL(blob);
+    el.download=`deck_s${S.session_num}.pptx`; el.click(); status("다운로드 완료.");
+  };
+  $("#truerender").onclick = async ()=>{
+    status("LibreOffice 렌더 중…");
+    try { const d = await post(`/api/session/${S.session_num}/truerender`, {});
+      $("#truerender-panel").style.display="block";
+      $("#truerender-out").innerHTML = d.images.map(b=>`<img src="data:image/png;base64,${b}"/>`).join("");
+      status("실렌더 완료."); }
+    catch(e){ status("실렌더 불가: "+e.message); }
+  };
+}
+
+/* ---------- entry points ---------- */
+$("#newsession").onclick = async () => {
+  const pr = $("#prompt").value.trim();
+  if (!pr) return status("내용을 입력하세요.");
+  $("#newsession").disabled = true;
+  showProgress("세션 생성 중…");
+  try {
+    const fd = new FormData();
+    fd.append("prompt", pr);
+    attachments.forEach(f=>fd.append("files", f, f.name));
+    await runJob(post("/api/session", fd));
+    status("계획이 준비됐습니다 — 검토 후 컨펌하세요.");
+    attachments=[]; renderChips();
+  } catch(e){ hideProgress(); status("실패: "+e.message); }
+  finally { $("#newsession").disabled = false; }
+};
+
+async function loadGallery() {
+  const d = await (await fetch("/api/examples")).json();
+  d.examples.forEach(e=>{
+    const b=document.createElement("button"); b.className="mini"; b.textContent=e.label;
+    b.onclick=async()=>{ try { renderSession(await post(`/api/example/${e.name}`, {})); status("갤러리: "+e.label); }
+      catch(err){ status("실패: "+err.message); } };
+    $("#gallery").appendChild(b);
+  });
+}
+loadGallery();
+</script>
+</body>
+</html>

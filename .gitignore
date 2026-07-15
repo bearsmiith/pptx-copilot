@@ -1,0 +1,27 @@
+# --- python ---
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# --- user data (sessions, interactions, config WITH api keys, bench runs) ---
+# Everything under data/ is user/runtime data EXCEPT the knowledge cards, which
+# are code assets and must be versioned.
+data/*
+!data/kb/
+data/kb/._*
+
+# bench runs (WP11) are local
+data/bench/
+
+# --- macOS / SMB share cruft ---
+._*
+.DS_Store
+.smbdelete*
+
+# --- misc ---
+*.tmp
+*.log
+scratchpad/

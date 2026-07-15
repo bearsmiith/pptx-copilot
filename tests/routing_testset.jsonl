@@ -1,0 +1,30 @@
+{"prompt":"HBM 12단 적층 단면도, TSV와 base die 강조","expect":["stack"]}
+{"prompt":"FC-BGA 패키지 단면 구조","expect":["stack"]}
+{"prompt":"글라스 코어 기판 빌드업 단면","expect":["stack"]}
+{"prompt":"OLED 디스플레이 레이어 스택","expect":["stack"]}
+{"prompt":"CoWoS 2.5D 인터포저 위 SoC와 HBM 병렬 배치","expect":["stack"]}
+{"prompt":"실리콘 포토닉스 WDM 트랜시버 광경로","expect":["photonic"]}
+{"prompt":"레이저에서 도파로 거쳐 포토다이오드로 가는 광 경로","expect":["photonic"]}
+{"prompt":"co-packaged optics 구성, laser mzm mux grating fiber","expect":["photonic"]}
+{"prompt":"반도체 패키징 공정 순서도","expect":["flow","stack"]}
+{"prompt":"웨이퍼 본딩 프로세스 단계별 워크플로","expect":["flow"]}
+{"prompt":"2026년 하반기 HBM4E 양산 로드맵 5개 마일스톤 분기별","expect":["timeline"]}
+{"prompt":"회사 연혁 타임라인 2015년부터","expect":["timeline"]}
+{"prompt":"프로젝트 일정 간트 마일스톤","expect":["timeline"]}
+{"prompt":"수율 핵심 지표 4개 요약 카드","expect":["kpi"]}
+{"prompt":"이번 분기 성과 대시보드 스코어카드","expect":["kpi"]}
+{"prompt":"FC-BGA vs FO-PLP vs 글라스코어 스펙 비교표: 배선폭 두께 비용","expect":["table","compare"]}
+{"prompt":"세 가지 본딩 기술 파라미터 사양표","expect":["table"]}
+{"prompt":"A안 B안 장단점 비교","expect":["compare","table"]}
+{"prompt":"세대별 대역폭 추이 3.6 6.4 9.2 11 GB/s 막대차트","expect":["chart"]}
+{"prompt":"연도별 매출 추이 라인 그래프 120 150 180 210","expect":["chart"]}
+{"prompt":"공정별 수율 12.5 18.3 24.1 막대그래프로","expect":["chart"]}
+{"prompt":"기술 투자 우선순위 2x2 매트릭스, 임팩트 대 난이도","expect":["matrix"]}
+{"prompt":"제품 포트폴리오 포지셔닝 사분면","expect":["matrix"]}
+{"prompt":"AI 가속기 패키지 구성도, 모듈 계층 분해","expect":["tree","stack"]}
+{"prompt":"시스템 블록 구성 하위 모듈 트리","expect":["tree"]}
+{"prompt":"조직도 계층 구조","expect":["tree"]}
+{"prompt":"BOM 부품 계층 구성도","expect":["tree"]}
+{"prompt":"mini LED 디밍존 8x4 어레이 그리드","expect":["array","stack"]}
+{"prompt":"픽셀 매트릭스 배열 구조","expect":["array","stack"]}
+{"prompt":"백사이드 파워 딜리버리 단면 나노TSV","expect":["stack"]}

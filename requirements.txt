@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-pptx
+openai
+pydantic
+python-multipart
+python-docx
+openpyxl
+pypdf
+pillow

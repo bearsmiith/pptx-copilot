@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>단면도 스튜디오 — pptx copilot</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px system-ui,sans-serif; color:#1f2a44; background:#f4f6fa; }
+  header { padding:11px 18px; background:#1f2a44; color:#fff; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  .badge { font-size:12px; padding:2px 9px; border-radius:10px; background:#2f6fed; }
+  .badge.warn { background:#b4690e; }
+  .badge.sid { background:#5b6472; }
+  header .grow { flex:1; }
+  select { font:13px system-ui; padding:5px 8px; border-radius:7px; border:0; }
+  button { font:600 13.5px system-ui; padding:8px 13px; border:0; border-radius:8px; background:#2f6fed; color:#fff; cursor:pointer; }
+  button.sec { background:#3a4356; color:#fff; }
+  button.mini { padding:4px 10px; font-size:12px; }
+  button:disabled { opacity:.45; cursor:default; }
+
+  /* empty / new-session state */
+  #emptybox { max-width:640px; margin:60px auto; background:#fff; border:1px solid #d7dbe3; border-radius:14px; padding:26px; }
+  #emptybox h2 { margin:0 0 6px; font-size:18px; }
+  #emptybox p { margin:0 0 14px; color:#5b6472; font-size:13.5px; }
+  textarea { font:14px system-ui; border:1px solid #d7dbe3; border-radius:8px; padding:10px; width:100%; }
+  #prompt { height:110px; }
+  #dropzone { margin-top:10px; border:1.5px dashed #b9c2ce; border-radius:8px; padding:9px 12px; font-size:12.5px; color:#5b6472; cursor:pointer; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .row { display:flex; gap:8px; margin-top:12px; align-items:center; flex-wrap:wrap; }
+
+  /* progress */
+  #progressbar { display:none; position:fixed; top:56px; left:50%; transform:translateX(-50%); z-index:60;
+    padding:9px 16px; background:#eef3ff; border:1px solid #cdddff; border-radius:10px; font-size:13px; box-shadow:0 4px 14px rgba(31,42,68,.12);}
+  #progressbar .spin { display:inline-block; width:12px; height:12px; border:2px solid #2f6fed; border-top-color:transparent; border-radius:50%; animation:sp .8s linear infinite; vertical-align:-2px; margin-right:8px;}
+  @keyframes sp { to { transform: rotate(360deg); } }
+  #status { position:fixed; bottom:10px; left:16px; font-size:12.5px; color:#5b6472; background:#fffc; padding:4px 10px; border-radius:8px; z-index:50;}
+
+  /* tree canvas */
+  #treewrap { position:relative; overflow:auto; padding:26px 20px 60px; min-height:calc(100vh - 54px); }
+  #tree { position:relative; display:flex; gap:70px; align-items:flex-start; width:max-content; }
+  .col { display:flex; flex-direction:column; gap:22px; width:300px; }
+  .col-label { font-size:11.5px; color:#8a93a0; text-transform:uppercase; letter-spacing:.05em; text-align:center; }
+  .node { width:300px; background:#fff; border:1.5px solid #d7dbe3; border-radius:10px; overflow:hidden; cursor:pointer;
+          transition: box-shadow .15s, border-color .15s; }
+  .node:hover { border-color:#2f6fed; box-shadow:0 6px 18px rgba(47,111,237,.18); }
+  .node .thumb { width:300px; height:169px; overflow:hidden; background:#fff; pointer-events:none; }
+  .node .thumb svg { width:300px; height:169px; display:block; border:0 !important; border-radius:0 !important; }
+  .node .meta { padding:6px 10px 8px; border-top:1px solid #eef1f6; }
+  .node .meta .nid { font-size:11px; color:#8a93a0; }
+  .node .meta .ins { font-size:12px; color:#3a4356; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .node.sel { border-color:#2e9e5b; box-shadow:0 0 0 2px #2e9e5b55; }
+  .node .pick { position:absolute; top:7px; left:7px; z-index:3; width:20px; height:20px; cursor:pointer; }
+  #slidebar { display:none; position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:70;
+    background:#1f2a44; color:#fff; padding:9px 14px; border-radius:12px; box-shadow:0 6px 20px rgba(31,42,68,.3); font-size:13px; display:flex; gap:10px; align-items:center;}
+  #slidebar button { background:#2e9e5b; }
+  #edges { position:absolute; top:0; left:0; pointer-events:none; z-index:0; }
+  .col, .node { position:relative; z-index:1; }
+
+  /* modal */
+  #modal { display:none; position:fixed; inset:0; background:rgba(15,20,32,.55); z-index:100; align-items:flex-start; justify-content:center; overflow:auto; padding:30px 16px; }
+  #modal .box { background:#fff; border-radius:14px; max-width:1150px; width:100%; padding:18px; }
+  #modal .head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  #modal .head b { font-size:15px; }
+  #modal .head .grow { flex:1; }
+  #bigview svg { width:100%; display:block; }
+  #modal .editrow { display:flex; gap:8px; margin-top:12px; }
+  #modal input[type=text] { flex:1; font:14px system-ui; border:1px solid #d7dbe3; border-radius:8px; padding:9px 11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>pptx copilot</h1>
+  <nav style="display:flex;gap:2px;margin-left:6px">
+    <a href="/" style="background:#2f6fed;color:#fff;padding:5px 12px;border-radius:7px 7px 0 0;font-size:13px;font-weight:600;text-decoration:none">단면도</a>
+    <a href="/slides" style="background:#2b3446;color:#9fb3d9;padding:5px 12px;border-radius:7px 7px 0 0;font-size:13px;text-decoration:none">슬라이드</a>
+    <a href="/settings" style="background:#2b3446;color:#9fb3d9;padding:5px 12px;border-radius:7px 7px 0 0;font-size:13px;text-decoration:none">설정</a>
+  </nav>
+  <span class="badge" id="modebadge">…</span>
+  <span class="badge sid" id="sidbadge" style="display:none"></span>
+  <span class="grow"></span>
+  <select id="sessionpick"><option value="">세션 불러오기…</option></select>
+  <button class="sec mini" id="newbtn">+ 새 세션</button>
+</header>
+
+<div id="progressbar"><span class="spin"></span><span id="progresstext"></span></div>
+<div id="livepreview" style="display:none;margin:14px auto 0;max-width:1100px">
+  <div style="font-size:12px;color:#8a93a0;margin:0 0 6px 2px">생성 중 미리보기…</div>
+  <div style="display:flex;gap:14px">
+    <div style="flex:1"><div style="font-size:12px;color:#5b6472;margin-bottom:3px">A (정석)</div><div id="lpA" style="border:1px dashed #cbd2dc;border-radius:8px;min-height:120px;background:#fafbfc"></div></div>
+    <div style="flex:1"><div style="font-size:12px;color:#5b6472;margin-bottom:3px">B (대안)</div><div id="lpB" style="border:1px dashed #cbd2dc;border-radius:8px;min-height:120px;background:#fafbfc"></div></div>
+  </div>
+</div>
+<div id="status"></div>
+
+<div id="emptybox">
+  <h2>새 단면도 세션</h2>
+  <p>요청을 입력하면 <b>서로 다른 초안 2안</b>이 생성됩니다. 카드를 클릭해 수정 요청을 보내면 다시 2안이 파생됩니다 — 좌→우로 계보가 이어집니다.</p>
+  <textarea id="prompt" placeholder="예: HBM4 16단 적층 구조 단면도. base die와 TSV 강조."></textarea>
+  <div id="dropzone">📎 참고자료 첨부 — 클릭/드래그 (이미지·PDF·pptx·docx·xlsx·텍스트)
+    <input type="file" id="fileinput" multiple style="display:none"/></div>
+  <div class="chips" id="filechips"></div>
+  <div class="row"><button id="startbtn">초안 2안 생성 ▶</button></div>
+</div>
+
+<div id="treewrap" style="display:none">
+  <div id="intake" style="display:none;margin:0 0 10px;padding:9px 12px;border:1px solid #f0c98a;background:#fdf6e9;border-radius:8px;font-size:13px;color:#7a5a1e">
+    <b>초안은 가정 하에 생성했습니다.</b> 더 정확히 하려면 아래 정보를 새 세션 요청이나 카드 수정에 덧붙여 주세요:
+    <span id="intakeq"></span>
+  </div>
+  <svg id="edges"></svg>
+  <div id="tree"></div>
+</div>
+
+<div id="slidebar">
+  <span id="slidebartext"></span>
+  <button id="makeslide">슬라이드 작성 ▶</button>
+</div>
+
+<div id="modal">
+  <div class="box">
+    <div class="head">
+      <b id="mtitle"></b><span class="badge sid" id="mnid"></span>
+      <span class="grow"></span>
+      <button class="mini" id="mexport">.pptx 내보내기</button>
+      <button class="sec mini" id="mclose">닫기 ✕</button>
+    </div>
+    <div id="bigview"></div>
+    <div id="briefbox" style="display:none;margin:8px 2px 0;padding:8px 11px;background:#f6f8fb;border:1px solid #e3e8ef;border-radius:8px;font-size:12px;color:#5b6472">
+      <b style="color:#1f2a44">시스템의 이해(Brief)</b> <span id="briefmeta"></span>
+      <div id="briefparts" style="margin-top:4px"></div>
+    </div>
+    <div class="editrow">
+      <input type="text" id="minstr" placeholder="이 안을 기준으로 수정 요청 (예: 몰드 제거하고 TSV를 hourglass로)"/>
+      <button id="mbranch">수정안 2안 생성 ▶</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let S = null, currentNode = null;
+let selected = new Set();
+const $ = s => document.querySelector(s);
+const esc = s => String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+const status = m => $("#status").textContent = m;
+
+async function post(url, body) {
+  const r = await fetch(url, {method:"POST",
+    headers: body instanceof FormData ? {} : {"Content-Type":"application/json"},
+    body: body instanceof FormData ? body : JSON.stringify(body)});
+  if (!r.ok) throw new Error((await r.text()).slice(0,400));
+  return r.json();
+}
+function showProgress(t){ $("#progressbar").style.display="block"; $("#progresstext").textContent=t; }
+function hideProgress(){ $("#progressbar").style.display="none"; }
+async function pollJob(job_id){
+  const t0=Date.now();
+  while(true){
+    await new Promise(r=>setTimeout(r,2200));
+    const r=await fetch(`/api/job/${job_id}`);
+    if(!r.ok) throw new Error((await r.text()).slice(0,300));
+    const j=await r.json();
+    if(j.status==="done"){ hideProgress(); hideLive(); return j; }
+    if(j.status==="error"){ hideProgress(); hideLive(); throw new Error(j.error); }
+    showProgress(`${j.progress||"작업 중"} · ${Math.round((Date.now()-t0)/1000)}s`);
+    showLive(j.partial||{});
+  }
+}
+function showLive(p){
+  const a=p.A, b=p.B; if(!a && !b) return;
+  $("#livepreview").style.display="block";
+  if(a) $("#lpA").innerHTML=a;
+  if(b) $("#lpB").innerHTML=b;
+}
+function hideLive(){ $("#livepreview").style.display="none"; $("#lpA").innerHTML=""; $("#lpB").innerHTML=""; }
+
+/* attachments */
+let attachments=[];
+const dz=$("#dropzone"), fi=$("#fileinput");
+dz.onclick=()=>fi.click();
+dz.ondragover=e=>{e.preventDefault();dz.style.borderColor="#2f6fed";};
+dz.ondragleave=()=>dz.style.borderColor="#b9c2ce";
+dz.ondrop=e=>{e.preventDefault();dz.style.borderColor="#b9c2ce";addFiles(e.dataTransfer.files);};
+fi.onchange=()=>{addFiles(fi.files);fi.value="";};
+function addFiles(l){for(const f of l){if(attachments.length>=8)break;if(f.size>15e6)continue;attachments.push(f);}renderChips();}
+function renderChips(){const b=$("#filechips");b.innerHTML="";attachments.forEach((f,i)=>{
+  const c=document.createElement("span");c.style.cssText="font-size:12px;background:#eef1f6;border-radius:12px;padding:3px 10px;";
+  c.innerHTML=`${esc(f.name)} <b style="cursor:pointer;color:#8a93a0">×</b>`;
+  c.querySelector("b").onclick=()=>{attachments.splice(i,1);renderChips();};b.appendChild(c);});}
+
+/* ---------- tree render ---------- */
+function depthOf(node, byId){ let d=0,p=node.parent; while(p){d++;p=byId[p].parent;} return d; }
+
+function renderTree(p){
+  S=p;
+  $("#emptybox").style.display="none";
+  $("#treewrap").style.display="block";
+  const llm=p.llm||{};
+  const mb=$("#modebadge");
+  mb.textContent = llm.provider==="mock" ? "MOCK" : `${llm.provider} · ${llm.model||""}`;
+  mb.className="badge"+(llm.provider==="mock"?" warn":"");
+  const sb=$("#sidbadge"); sb.textContent=`세션 #${p.session_num}`; sb.style.display="inline";
+  document.title = `#${p.session_num} ${p.title} — 단면도 스튜디오`;
+  const iq=$("#intake"); const qs=(p.questions||[]);
+  if(qs.length){ $("#intakeq").innerHTML=qs.map(q=>`<span style="display:inline-block;background:#fff;border:1px solid #e6d3a8;border-radius:12px;padding:1px 9px;margin:2px 3px">${esc(q)}</span>`).join(""); iq.style.display="block"; }
+  else iq.style.display="none";
+
+  const byId={}; p.nodes.forEach(n=>byId[n.id]=n);
+  const cols={};
+  p.nodes.forEach(n=>{ const d=depthOf(n,byId); (cols[d]=cols[d]||[]).push(n); });
+  const tree=$("#tree"); tree.innerHTML="";
+  const maxD=Math.max(...Object.keys(cols).map(Number));
+  for(let d=0; d<=maxD; d++){
+    const col=document.createElement("div"); col.className="col";
+    col.innerHTML=`<div class="col-label">${d===0?"초안":"수정 "+d}</div>`;
+    (cols[d]||[]).forEach(n=>{
+      const card=document.createElement("div"); card.className="node"+(selected.has(n.id)?" sel":""); card.id="card-"+n.id;
+      card.innerHTML=`<input type="checkbox" class="pick" ${selected.has(n.id)?"checked":""} title="슬라이드에 넣을 단면도 선택"/>
+        <div class="thumb">${n.svg}</div>
+        <div class="meta"><div class="nid">${n.id}${n.parent?" ← "+n.parent:""} · ${esc(n.title)}</div>
+        <div class="ins">${esc(n.instruction)}</div></div>`;
+      card.querySelector(".pick").onclick=e=>{ e.stopPropagation(); toggleSel(n.id); };
+      card.onclick=()=>openModal(n.id);
+      col.appendChild(card);
+    });
+    tree.appendChild(col);
+  }
+  requestAnimationFrame(drawEdges);
+}
+
+function toggleSel(id){
+  if(selected.has(id)) selected.delete(id); else selected.add(id);
+  const c=document.getElementById("card-"+id);
+  if(c) c.classList.toggle("sel", selected.has(id));
+  const bar=$("#slidebar");
+  if(selected.size){ bar.style.display="flex"; $("#slidebartext").textContent=`단면도 ${selected.size}개 선택됨`; }
+  else bar.style.display="none";
+}
+$("#makeslide").onclick=async()=>{
+  if(!selected.size) return;
+  const prompt=window.prompt("슬라이드 요청(선택): 이 단면도들로 어떤 슬라이드를 만들까요?","");
+  if(prompt===null) return;
+  try{
+    status("슬라이드 세션 생성 중…");
+    const r=await post("/api/s/session/from_diagrams",
+      {diagram_session:S.session_num, node_ids:[...selected], prompt});
+    location.href=`/slides#s=${r.session_num}`;
+  }catch(e){ status("실패: "+e.message); }
+};
+
+function drawEdges(){
+  if(!S) return;
+  const wrap=$("#treewrap"), svg=$("#edges");
+  svg.setAttribute("width", wrap.scrollWidth);
+  svg.setAttribute("height", wrap.scrollHeight);
+  const wr=wrap.getBoundingClientRect();
+  let paths="";
+  S.nodes.forEach(n=>{
+    if(!n.parent) return;
+    const a=document.getElementById("card-"+n.parent), b=document.getElementById("card-"+n.id);
+    if(!a||!b) return;
+    const ra=a.getBoundingClientRect(), rb=b.getBoundingClientRect();
+    const x1=ra.right-wr.left+wrap.scrollLeft, y1=ra.top+ra.height/2-wr.top+wrap.scrollTop;
+    const x2=rb.left-wr.left+wrap.scrollLeft,  y2=rb.top+rb.height/2-wr.top+wrap.scrollTop;
+    const mx=(x1+x2)/2;
+    paths+=`<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="#b9c6dd" stroke-width="2"/>`;
+  });
+  svg.innerHTML=paths;
+}
+window.addEventListener("resize", drawEdges);
+
+/* ---------- modal ---------- */
+function openModal(nid){
+  const n=S.nodes.find(x=>x.id===nid); if(!n) return;
+  currentNode=nid;
+  $("#mtitle").textContent=n.title||S.title;
+  $("#mnid").textContent=n.id;
+  $("#bigview").innerHTML=n.svg;
+  const bb=$("#briefbox");
+  if(n.brief && (n.brief.parts||[]).length){
+    $("#briefmeta").textContent=`· ${n.brief.genre||""}${n.brief.emphasis?(" / "+n.brief.emphasis):""}`;
+    $("#briefparts").innerHTML=n.brief.parts.map(p=>{
+      const m=p.mount?` <span style="color:#8a93a0">(${esc(p.mount)}${p.on?(" on "+esc(p.on)):""})</span>`:"";
+      return `<span style="display:inline-block;background:#fff;border:1px solid #dbe1ea;border-radius:11px;padding:1px 8px;margin:2px 3px">${esc(p.name)}${m}</span>`;
+    }).join("");
+    bb.style.display="block";
+  } else bb.style.display="none";
+  $("#minstr").value="";
+  $("#modal").style.display="flex";
+}
+$("#mclose").onclick=()=>$("#modal").style.display="none";
+$("#modal").onclick=e=>{ if(e.target.id==="modal") $("#modal").style.display="none"; };
+$("#mexport").onclick=async()=>{
+  status("pptx 생성 중…");
+  const r=await fetch(`/api/d/session/${S.session_num}/export/${currentNode}`,{method:"POST"});
+  if(!r.ok) return status("실패: "+(await r.text()).slice(0,200));
+  const blob=await r.blob(); const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=`diagram_s${S.session_num}_${currentNode}.pptx`; a.click();
+  status("다운로드 완료.");
+};
+async function branch(){
+  const ins=$("#minstr").value.trim();
+  if(!ins) return status("수정 요청을 입력하세요.");
+  $("#modal").style.display="none";
+  try{
+    const {job_id}=await post(`/api/d/session/${S.session_num}/branch`,{node_id:currentNode,instruction:ins});
+    showProgress("수정안 생성 시작…");
+    renderTree(await pollJob(job_id));
+    status(`${currentNode}에서 2안 파생 완료.`);
+  }catch(e){ status("실패: "+e.message); }
+}
+$("#mbranch").onclick=branch;
+$("#minstr").onkeydown=e=>{ if(e.key==="Enter") branch(); };
+
+/* ---------- entry ---------- */
+$("#startbtn").onclick=async()=>{
+  const pr=$("#prompt").value.trim();
+  if(!pr) return status("요청을 입력하세요.");
+  $("#startbtn").disabled=true;
+  try{
+    const fd=new FormData(); fd.append("prompt",pr);
+    attachments.forEach(f=>fd.append("files",f,f.name));
+    const {job_id}=await post("/api/d/session",fd);
+    showProgress("세션 생성, 초안 2안 요청됨…");
+    renderTree(await pollJob(job_id));
+    status("초안 2안 생성 완료 — 카드를 클릭해 수정하세요.");
+    attachments=[]; renderChips(); loadSessionList();
+  }catch(e){ hideProgress(); status("실패: "+e.message); }
+  finally{ $("#startbtn").disabled=false; }
+};
+$("#newbtn").onclick=()=>{
+  S=null; $("#treewrap").style.display="none"; $("#emptybox").style.display="block";
+  $("#sidbadge").style.display="none"; $("#prompt").value=""; status("");
+  document.title="단면도 스튜디오 — pptx copilot";
+};
+async function loadSessionList(){
+  const d=await (await fetch("/api/d/sessions")).json();
+  const sel=$("#sessionpick");
+  sel.innerHTML='<option value="">세션 불러오기…</option>'+
+    d.sessions.map(s=>`<option value="${s.num}">#${s.num} · ${esc(s.title)} (${s.node_count}안)</option>`).join("");
+}
+$("#sessionpick").onchange=async e=>{
+  const v=e.target.value; if(!v) return;
+  try{ await openSession(+v); }
+  catch(err){ status("불러오기 실패: "+err.message); }
+  e.target.value="";
+};
+async function openSession(num){
+  selected = new Set(); $("#slidebar").style.display="none";
+  renderTree(await (await fetch(`/api/d/session/${num}`)).json());
+  status(`세션 #${num} 불러옴.`);
+  location.hash = "s=" + num;
+}
+(async()=>{
+  loadSessionList();
+  const m = location.hash.match(/s=(\d+)/);
+  if (m) { try { await openSession(+m[1]); } catch(e){ status("세션 없음"); } }
+})();
+</script>
+</body>
+</html>
