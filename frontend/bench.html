@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>벤치 — pptx-copilot</title>
+<style>
+  :root{--navy:#1f2a44;--accent:#2f6fed;--gray:#5b6472;--line:#d7dbe3}
+  *{box-sizing:border-box} body{margin:0;font:400 15px system-ui,sans-serif;color:var(--navy);background:#f6f8fb}
+  header{display:flex;align-items:center;gap:16px;padding:11px 20px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+  header b{font-size:16px} nav a{color:var(--gray);text-decoration:none;font-size:14px;margin-right:12px}
+  nav a.on{color:var(--accent);font-weight:600}
+  main{max-width:1180px;margin:18px auto;padding:0 18px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:16px}
+  .row{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+  label.chk{font-size:14px;margin-right:12px;cursor:pointer}
+  button{font:500 14px system-ui;background:var(--accent);color:#fff;border:0;border-radius:7px;padding:8px 16px;cursor:pointer}
+  button.sec{background:#eef1f6;color:var(--navy)}
+  select{font:14px system-ui;padding:6px 8px;border:1px solid var(--line);border-radius:6px}
+  table{border-collapse:collapse;width:100%} th,td{border:1px solid var(--line);padding:7px 10px;text-align:center;font-size:13px}
+  th{background:#f0f3f8} td.lbl{text-align:left;font-weight:600}
+  .prog{display:none;margin:8px 0;color:var(--gray);font-size:13px}
+  .spin{display:inline-block;width:11px;height:11px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-1px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .caserow{display:flex;gap:12px;overflow-x:auto;padding:6px 0;border-top:1px solid var(--line);margin-top:8px}
+  .casecol{min-width:280px;flex:0 0 auto} .casecol .m{font-size:12px;color:var(--gray)}
+  .casecol svg{border:1px solid var(--line);border-radius:6px}
+  .muted{color:var(--gray);font-size:13px}
+</style></head>
+<body>
+<header>
+  <b>pptx-copilot</b>
+  <nav><a href="/">단면도</a><a href="/slides">슬라이드</a><a href="/bench" class="on">벤치</a><a href="/settings">설정</a></nav>
+</header>
+<main>
+  <div class="card">
+    <div class="row">
+      <div><b>모델</b>&nbsp; <span id="eps"></span></div>
+      <div><b>카테고리</b>&nbsp; <span id="cats"></span></div>
+      <div><b>심판</b>&nbsp; <select id="judge"><option value="">off</option></select></div>
+      <button id="run">실행 ▶</button>
+      <span class="muted" id="ncase"></span>
+    </div>
+    <div class="prog" id="prog"><span class="spin"></span><span id="progtext"></span></div>
+  </div>
+  <div id="results"></div>
+  <div class="card">
+    <b>과거 런</b> <span class="muted">(선택해서 비교/열람)</span>
+    <div id="runs" style="margin-top:8px"></div>
+  </div>
+</main>
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const EPS=["mock","haiku","qwen27b","qwen122b"];
+let CASES=[], CATS=[];
+
+async function init(){
+  const j=await (await fetch("/api/bench/cases")).json(); CASES=j.cases;
+  CATS=[...new Set(CASES.map(c=>c.category))].sort();
+  $("#eps").innerHTML=EPS.map(e=>`<label class="chk"><input type="checkbox" value="${e}" ${e==='mock'?'checked':''}> ${e}</label>`).join("");
+  $("#cats").innerHTML=CATS.map(c=>`<label class="chk"><input type="checkbox" value="${c}" checked> ${c}</label>`).join("");
+  EPS.forEach(e=>{const o=document.createElement("option");o.value=e;o.textContent=e;$("#judge").appendChild(o);});
+  updCount();
+  $$("#cats input").forEach(i=>i.onchange=updCount);
+  loadRuns();
+}
+function updCount(){ const cats=chosen("#cats"); $("#ncase").textContent=`${CASES.filter(c=>cats.includes(c.category)).length}케이스`; }
+function chosen(sel){ return $$(`${sel} input:checked`).map(i=>i.value); }
+
+$("#run").onclick=async()=>{
+  const endpoints=chosen("#eps"), categories=chosen("#cats"), judge=$("#judge").value||null;
+  if(!endpoints.length){alert("모델을 선택하세요");return;}
+  $("#prog").style.display="block"; $("#progtext").textContent="시작…";
+  const {job_id}=await post("/api/bench/run",{endpoints,categories,judge});
+  const run=await pollJob(job_id);
+  $("#prog").style.display="none";
+  renderRun(run); loadRuns();
+};
+
+async function post(u,b){return (await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)})).json();}
+async function pollJob(id){
+  while(true){ await new Promise(r=>setTimeout(r,2200));
+    const j=await (await fetch(`/api/job/${id}`)).json();
+    if(j.status==="done") return j; if(j.status==="error") throw new Error(j.error);
+    $("#progtext").textContent=`${j.progress||"작업 중"} · ${j.elapsed||0}s`;
+  }
+}
+
+function heat(v){ const t=Math.max(0,Math.min(100,v))/100; const r=Math.round(220-120*t),g=Math.round(70+150*t),b=Math.round(90+40*t); return `background:rgb(${r},${g},${b});color:${t>0.5?'#fff':'#1f2a44'}`; }
+
+function renderRun(run){
+  const eps=run.endpoints, cats=[...new Set(Object.values(run.cases).map(c=>c.category))].sort();
+  let h=`<div class="card"><b>모델 × 카테고리 히트맵</b> <span class="muted">심판: ${run.judge}</span>
+    <table style="margin-top:8px"><tr><th>모델</th>${cats.map(c=>`<th>${c}</th>`).join("")}<th>종합</th></tr>`;
+  eps.forEach(e=>{ const a=run.agg[e]||{by_category:{}};
+    h+=`<tr><td class="lbl">${e}</td>${cats.map(c=>{const v=a.by_category[c];return v==null?'<td>–</td>':`<td style="${heat(v)}">${v}</td>`}).join("")}<td style="${heat(a.overall||0)}"><b>${a.overall||0}</b></td></tr>`;
+  });
+  h+=`</table></div>`;
+  // case drilldown
+  h+=`<div class="card"><b>케이스별 비교</b>`;
+  Object.keys(run.cases).sort().forEach(cid=>{
+    const c=run.cases[cid];
+    h+=`<div style="margin-top:10px"><b>${cid}</b> <span class="muted">[${c.category}] ${esc(c.prompt).slice(0,70)}</span><div class="caserow">`;
+    eps.forEach(e=>{ const r=c[e]; if(!r) return;
+      h+=`<div class="casecol"><div class="m"><b>${e}</b> · ${r.score}점 · ${r.kind||'–'} · ${r.sec||0}s${r.error?` · <span style="color:#d64550">${esc(r.error)}</span>`:''}</div><div style="max-width:280px">${r.svg||'<div class="muted">(없음)</div>'}</div></div>`;
+    });
+    h+=`</div></div>`;
+  });
+  h+=`</div>`;
+  $("#results").innerHTML=h;
+}
+
+async function loadRuns(){
+  const j=await (await fetch("/api/bench/runs")).json();
+  $("#runs").innerHTML = j.runs.length? j.runs.map(r=>{
+    const ov=Object.entries(r.overall||{}).map(([e,v])=>`${e}:${v}`).join(" / ");
+    return `<div style="padding:5px 0;border-bottom:1px solid var(--line);cursor:pointer" onclick="openRun('${r.run_id}')"><b>#${r.run_id}</b> <span class="muted">${(r.endpoints||[]).join("/")} · 심판 ${r.judge} · ${ov}</span></div>`;
+  }).join("") : '<span class="muted">아직 없음</span>';
+}
+window.openRun=async(id)=>{ renderRun(await (await fetch(`/api/bench/run/${id}`)).json()); window.scrollTo(0,0); };
+init();
+</script>
+</body></html>

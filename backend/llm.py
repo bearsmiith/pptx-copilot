@@ -587,7 +587,8 @@ def generate_diagram_slide(prompt: str, direction: str, events: list[dict],
                           f"(the {other} framing is the other draft). Faithfully "
                           f"answer the same request.")
     else:
-        kinds = router.top_kinds(hint, 3)
+        _kmax = int(config.profile("figure").get("kind_docs_max", 3))   # WP11 profile
+        kinds = router.top_kinds(hint, max(1, _kmax))
         kind_hint = router.kind_hint_text(hint)
         direction_text = DIAGRAM_DIRECTIONS[direction]
     # template-first: canonical structure as the "정석" draft (A), no attachments,

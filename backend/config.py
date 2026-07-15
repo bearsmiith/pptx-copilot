@@ -48,10 +48,14 @@ def _defaults() -> dict:
         "haiku_model": os.environ.get("LLM_MODEL", "haiku"),
         "endpoints": {
             "qwen27b": {"label": "Qwen3.6-27B", "base_url": "", "model": "",
-                        "api_key": "", "json_mode": "guided_json"},
+                        "api_key": "", "json_mode": "guided_json",
+                        # WP11: small model -> template-first, fewer kind docs, one repair
+                        "profile": {"template_first": True, "kind_docs_max": 2,
+                                    "lint_repair_rounds": 1, "kb_k": 3}},
             "qwen122b": {"label": "Qwen3.5-122B", "base_url": seed_url,
                          "model": seed_model, "api_key": os.environ.get("OPENAI_API_KEY", ""),
-                         "json_mode": seed_jm},
+                         "json_mode": seed_jm,
+                         "profile": {"kind_docs_max": 3, "kb_k": 5}},
         },
         "stage": {"plan": "", "figure": "", "fill": ""},
     }
@@ -108,11 +112,29 @@ def public() -> dict:
 
 # ---- resolution used by llm.py ----
 
+_bench_active: str | None = None      # WP11: force a specific endpoint during a bench run
+
+
+def bench_override(ep: str | None):
+    global _bench_active
+    _bench_active = ep
+
+
+def profile(stage: str | None = None) -> dict:
+    """WP11: the tuning profile for the active/resolved endpoint (kb_k,
+    template_first, kind_docs_max, lint_repair_rounds, temperature). {} if none."""
+    c = get()
+    sid = _bench_active or (c.get("stage") or {}).get(stage or "") or c.get("active")
+    if sid in ("mock", "haiku"):
+        return (c.get("endpoints", {}).get(sid, {}) or {}).get("profile", {}) or {}
+    return ((c.get("endpoints") or {}).get(sid) or {}).get("profile", {}) or {}
+
+
 def resolve(stage: str | None = None) -> dict:
     """Return the backend to use for a stage:
     {provider, model, base_url?, api_key?, json_mode?}."""
     c = get()
-    sid = (c.get("stage") or {}).get(stage or "") or c.get("active")
+    sid = _bench_active or (c.get("stage") or {}).get(stage or "") or c.get("active")
     if sid == "mock":
         return {"provider": "mock"}
     if sid == "haiku":

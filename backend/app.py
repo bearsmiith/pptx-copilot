@@ -194,6 +194,54 @@ def settings_ui():
         return f.read()
 
 
+@app.get("/bench", response_class=HTMLResponse)
+def bench_ui():
+    with open(os.path.join(HERE, "..", "frontend", "bench.html"),
+              encoding="utf-8") as f:
+        return f.read()
+
+
+# ---------------- WP11: LLM comparison bench ----------------
+
+class BenchReq(BaseModel):
+    endpoints: list[str]
+    categories: list[str] | None = None
+    case_ids: list[str] | None = None
+    judge: str | None = None
+
+
+@app.post("/api/bench/run")
+def bench_run(req: BenchReq):
+    import bench as _bench
+    eps = [e for e in req.endpoints if e] or ["mock"]
+
+    def run(job_id):
+        return _bench.run_bench(eps, job_id, JOBS, case_ids=req.case_ids,
+                                categories=req.categories, judge=req.judge)
+    return {"job_id": _start_job(f"bench {'/'.join(eps)}", run)}
+
+
+@app.get("/api/bench/runs")
+def bench_runs():
+    import bench as _bench
+    return {"runs": _bench.list_runs()}
+
+
+@app.get("/api/bench/run/{run_id}")
+def bench_run_get(run_id: str):
+    import bench as _bench
+    r = _bench.get_run(run_id)
+    if not r:
+        raise HTTPException(404, "unknown run")
+    return r
+
+
+@app.get("/api/bench/cases")
+def bench_cases():
+    import bench as _bench
+    return {"cases": _bench.load_cases()}
+
+
 # ---------------- settings / LLM backend config ----------------
 
 @app.get("/api/config")
