@@ -122,9 +122,11 @@
     <div class="head">
       <b id="mtitle"></b><span class="badge sid" id="mnid"></span>
       <span class="grow"></span>
+      <button class="sec mini" id="medit">✎ 편집</button>
       <button class="mini" id="mexport">.pptx 내보내기</button>
       <button class="sec mini" id="mclose">닫기 ✕</button>
     </div>
+    <div id="etoolbar" style="display:none;margin:0 0 8px;align-items:center"></div>
     <div id="bigview"></div>
     <div id="briefbox" style="display:none;margin:8px 2px 0;padding:8px 11px;background:#f6f8fb;border:1px solid #e3e8ef;border-radius:8px;font-size:12px;color:#5b6472">
       <b style="color:#1f2a44">시스템의 이해(Brief)</b> <span id="briefmeta"></span>
@@ -137,6 +139,7 @@
   </div>
 </div>
 
+<script src="/editor.js"></script>
 <script>
 let S = null, currentNode = null;
 let selected = new Set();
@@ -288,7 +291,13 @@ function openModal(nid){
   $("#minstr").value="";
   $("#modal").style.display="flex";
 }
-$("#mclose").onclick=()=>$("#modal").style.display="none";
+$("#medit").onclick=()=>{
+  if(!currentNode) return;
+  Editor.open({ api:`/api/d/session/${S.session_num}`, nodeId:currentNode,
+    container:$("#bigview"), toolbar:$("#etoolbar"),
+    onSaved:(p)=>{ renderTree(p); $("#modal").style.display="none"; } });
+};
+$("#mclose").onclick=()=>{ if(window.Editor) Editor.close(); $("#etoolbar").style.display="none"; $("#modal").style.display="none"; };
 $("#modal").onclick=e=>{ if(e.target.id==="modal") $("#modal").style.display="none"; };
 $("#mexport").onclick=async()=>{
   status("pptx 생성 중…");

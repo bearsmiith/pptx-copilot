@@ -169,6 +169,12 @@ def index():
         return f.read()
 
 
+@app.get("/editor.js")
+def editor_js():
+    with open(os.path.join(HERE, "..", "frontend", "editor.js"), encoding="utf-8") as f:
+        return Response(content=f.read(), media_type="application/javascript")
+
+
 @app.get("/slides", response_class=HTMLResponse)
 def slides_ui():
     with open(SLIDES_UI, encoding="utf-8") as f:
@@ -286,13 +292,14 @@ def _dsession_payload(s: dict) -> dict:
     nodes = []
     for n in s["nodes"]:
         try:
-            svg = render_slide_svg(_dnode_slide(n))
+            svg = render_slide_svg(_dnode_slide(n), overrides=n.get("overrides"))
         except Exception as e:
             svg = f"<svg xmlns='http://www.w3.org/2000/svg'></svg><!--{e}-->"
         nodes.append({"id": n["id"], "parent": n["parent"],
                       "instruction": n["instruction"], "ts": n["ts"],
                       "title": n["slide"].get("title", ""), "svg": svg,
-                      "brief": _brief_summary(n.get("brief"))})
+                      "brief": _brief_summary(n.get("brief")),
+                      "edited": bool(n.get("overrides"))})
     return {"session_num": s["num"], "title": s["title"], "prompt": s["prompt"],
             "nodes": nodes, "llm": provider_info(),
             "questions": s.get("questions", [])}
@@ -422,14 +429,26 @@ def d_branch(num: int, req: BranchReq):
         errs = [d for d in ("A", "B") if isinstance(results[d], Exception)]
         if len(errs) == 2:
             raise RuntimeError(f"both variants failed: {results['A']}")
+        base_ov = base.get("overrides")           # WP10 carry-forward
         for d in ("A", "B"):
             if isinstance(results[d], Exception):
                 dsessions.log_event(s, "error", f"variant {d} failed")
                 continue
+            carried = None
+            if base_ov:
+                try:
+                    from layout import layout_slide
+                    from overrides import carry_forward
+                    carried, kept, dropped = carry_forward(
+                        base_ov, layout_slide(results[d]))
+                    dsessions.log_event(s, "overrides",
+                                        f"유지 {kept}건 / 폐기 {dropped}건")
+                except Exception:
+                    carried = None
             node = dsessions.add_node(s, req.node_id,
                                       f"({d}) {req.instruction}",
                                       results[d].model_dump(exclude_none=True),
-                                      brief=briefs.get(d))
+                                      brief=briefs.get(d), overrides=carried)
             dsessions.log_event(s, "variant", f"{node['id']} from "
                                 f"{req.node_id} ({d})")
         dsessions.save(s)
@@ -447,6 +466,7 @@ def d_export(num: int, node_id: str):
     if not node:
         raise HTTPException(404, "unknown node")
     deck = Deck(title=s["title"], slides=[_dnode_slide(node)])
+    ov = [node["overrides"]] if node.get("overrides") else None   # WP10
     dsessions.log_event(s, "export", node_id)
     dsessions.save(s)
     telemetry.record({"session_kind": "diagram", "session_num": num,
@@ -455,10 +475,72 @@ def d_export(num: int, node_id: str):
                       "provider": provider_info().get("provider"),
                       "model": provider_info().get("model")})
     return Response(
-        content=build_pptx(deck),
+        content=build_pptx(deck, overrides_by_slide=ov),
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         headers={"Content-Disposition":
                  f'attachment; filename="diagram_s{num}_{node_id}.pptx"'})
+
+
+# ---------------- WP10: canvas editor (edit -> derived node) ----------------
+
+class EditReq(BaseModel):
+    node_id: str
+    overrides: dict
+
+
+@app.get("/api/d/session/{num}/node/{node_id}/editable_svg")
+def d_editable_svg(num: int, node_id: str):
+    s = dsessions.load(num)
+    if not s or not dsessions.owns(s, _uid()):
+        raise HTTPException(404, "unknown session")
+    node = next((n for n in s["nodes"] if n["id"] == node_id), None)
+    if not node:
+        raise HTTPException(404, "unknown node")
+    svg = render_slide_svg(_dnode_slide(node), overrides=node.get("overrides"),
+                           editable=True)
+    return {"svg": svg, "overrides": node.get("overrides") or {"v": 1, "items": {}, "added": []}}
+
+
+@app.post("/api/d/session/{num}/edit_node")
+def d_edit_node(num: int, req: EditReq):
+    s = dsessions.load(num)
+    if not s or not dsessions.owns(s, _uid()):
+        raise HTTPException(404, "unknown session")
+    base = next((n for n in s["nodes"] if n["id"] == req.node_id), None)
+    if not base:
+        raise HTTPException(404, "unknown node")
+    node = dsessions.add_node(s, req.node_id, "(직접 편집)", base["slide"],
+                              brief=base.get("brief"), overrides=req.overrides)
+    dsessions.log_event(s, "manual_edit", f"{node['id']} from {req.node_id}")
+    dsessions.save(s)
+    telemetry.record({"session_kind": "diagram", "session_num": num,
+                      "action": "manual_edit", "node_id": node["id"]})
+    return _dsession_payload(s)
+
+
+class RecompileReq(BaseModel):
+    node_id: str
+    brief: dict
+
+
+@app.post("/api/d/session/{num}/recompile")
+def d_recompile(num: int, req: RecompileReq):
+    s = dsessions.load(num)
+    if not s or not dsessions.owns(s, _uid()):
+        raise HTTPException(404, "unknown session")
+    if not any(n["id"] == req.node_id for n in s["nodes"]):
+        raise HTTPException(404, "unknown node")
+    try:
+        from brief_model import Brief
+        from compile_brief import compile_brief
+        slide = compile_brief(Brief.model_validate(req.brief))
+    except Exception as e:
+        raise HTTPException(400, f"brief compile failed: {str(e)[:200]}")
+    node = dsessions.add_node(s, req.node_id, "(Brief 편집)",
+                              slide.model_dump(exclude_none=True), brief=req.brief)
+    dsessions.log_event(s, "recompile", f"{node['id']} from {req.node_id}")
+    dsessions.save(s)
+    return _dsession_payload(s)
 
 
 # ---------------- single-slide sessions (이미지+텍스트 레이아웃) ----------------

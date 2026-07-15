@@ -48,7 +48,7 @@ def new_session(prompt: str, uid: str | None = None) -> dict:
 
 
 def add_node(s: dict, parent: str | None, instruction: str, slide_dict: dict,
-             brief: dict | None = None) -> dict:
+             brief: dict | None = None, overrides: dict | None = None) -> dict:
     node = {
         "id": f"n{s['next_node']}",
         "parent": parent,
@@ -58,6 +58,8 @@ def add_node(s: dict, parent: str | None, instruction: str, slide_dict: dict,
     }
     if brief is not None:                        # WP8: persist the Brief IR so
         node["brief"] = brief                    # revisions edit it and recompile
+    if overrides:                                # WP10: user edit diff layer
+        node["overrides"] = overrides
     s["next_node"] += 1
     s["nodes"].append(node)
     return node

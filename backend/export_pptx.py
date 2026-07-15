@@ -165,15 +165,22 @@ def _add_figure(slide, f: FigureItem):
         _add_text(slide, t)
 
 
-def build_pptx(deck: Deck) -> bytes:
+def build_pptx(deck: Deck, overrides_by_slide=None) -> bytes:
     prs = Presentation()
     prs.slide_width = Inches(SLIDE_W)
     prs.slide_height = Inches(SLIDE_H)
     blank = prs.slide_layouts[6]
 
-    for slide_plan in deck.slides:
+    for si, slide_plan in enumerate(deck.slides):
         slide = prs.slides.add_slide(blank)
-        for it in layout_slide(slide_plan):
+        items = layout_slide(slide_plan)
+        ov = (overrides_by_slide or {}).get(si) if isinstance(overrides_by_slide, dict) \
+            else (overrides_by_slide[si] if overrides_by_slide
+                  and si < len(overrides_by_slide) else None)
+        if ov:
+            from overrides import apply_overrides
+            items = apply_overrides(items, ov)
+        for it in items:
             if isinstance(it, TextItem):
                 _add_text(slide, it)
             elif isinstance(it, FigureItem):

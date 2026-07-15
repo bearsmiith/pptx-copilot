@@ -99,33 +99,48 @@ def _callout_svg(c: Callout) -> str:
     return dot + line + label
 
 
-def _figure_svg(f: FigureItem) -> str:
+def _wrap(svg: str, eid, editable: bool) -> str:
+    if editable and eid:
+        return f'<g data-eid="{escape(str(eid))}" style="cursor:pointer">{svg}</g>'
+    return svg
+
+
+def _edge_svg(e) -> str:
+    marker = ' marker-end="url(#arrow)"' if getattr(e, "arrow", True) else ""
+    s = (f'<line x1="{e.x1*PX:.1f}" y1="{e.y1*PX:.1f}" x2="{e.x2*PX:.1f}" '
+         f'y2="{e.y2*PX:.1f}" stroke="{ACCENT}" stroke-width="2.5"{marker}/>')
+    if e.label:
+        mx, my = (e.x1 + e.x2) / 2, (e.y1 + e.y2) / 2
+        s += (f'<text x="{mx*PX:.1f}" y="{my*PX-6:.1f}" fill="{GRAY}" '
+              f'font-size="14" text-anchor="middle">{escape(e.label)}</text>')
+    return s
+
+
+def _figure_svg(f: FigureItem, editable: bool = False) -> str:
     parts = []
     for e in f.edges:
-        marker = ' marker-end="url(#arrow)"' if getattr(e, "arrow", True) else ""
-        parts.append(
-            f'<line x1="{e.x1*PX:.1f}" y1="{e.y1*PX:.1f}" x2="{e.x2*PX:.1f}" '
-            f'y2="{e.y2*PX:.1f}" stroke="{ACCENT}" stroke-width="2.5"{marker}/>')
-        if e.label:
-            mx, my = (e.x1 + e.x2) / 2, (e.y1 + e.y2) / 2
-            parts.append(f'<text x="{mx*PX:.1f}" y="{my*PX-6:.1f}" fill="{GRAY}" '
-                         f'font-size="14" text-anchor="middle">{escape(e.label)}</text>')
+        parts.append(_wrap(_edge_svg(e), getattr(e, "eid", None), editable))
     for s in f.shapes:
-        parts.append(_shape_svg(s))
+        parts.append(_wrap(_shape_svg(s), getattr(s, "eid", None), editable))
     for c in f.callouts:
-        parts.append(_callout_svg(c))
+        parts.append(_wrap(_callout_svg(c), getattr(c, "eid", None), editable))
     for t in f.texts:
-        parts.append(_text_item_svg(t))
+        parts.append(_wrap(_text_item_svg(t), getattr(t, "eid", None), editable))
     return "".join(parts)
 
 
-def render_slide_svg(slide: Slide) -> str:
+def render_slide_svg(slide: Slide, overrides: dict | None = None,
+                     editable: bool = False) -> str:
+    items = layout_slide(slide)
+    if overrides:
+        from overrides import apply_overrides
+        items = apply_overrides(items, overrides)
     body = []
-    for it in layout_slide(slide):
+    for it in items:
         if isinstance(it, TextItem):
-            body.append(_text_item_svg(it))
+            body.append(_wrap(_text_item_svg(it), getattr(it, "eid", None), editable))
         elif isinstance(it, FigureItem):
-            body.append(_figure_svg(it))
+            body.append(_figure_svg(it, editable))
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="100%" '
         f'style="background:#fff;border:1px solid #d7dbe3;border-radius:8px;display:block;">'

@@ -43,6 +43,7 @@ class TextItem:
     x: float; y: float; w: float; h: float
     text: str = ""
     bullets: list[str] = field(default_factory=list)
+    eid: Optional[str] = None            # WP10 stable element id (edit overrides)
 
 
 @dataclass
@@ -52,18 +53,21 @@ class RectShape:
     rx: float = 0.0                      # corner radius (inches)
     inner_label: Optional[str] = None    # centered text inside
     label_size: int = 15                 # px at 96dpi (svg); pptx converts
+    eid: Optional[str] = None
 
 
 @dataclass
 class PolyShape:
     points: list[tuple[float, float]]
     material: str = "gray"
+    eid: Optional[str] = None
 
 
 @dataclass
 class CircleShape:
     cx: float; cy: float; r: float
     material: str = "solder"
+    eid: Optional[str] = None
 
 
 @dataclass
@@ -71,6 +75,7 @@ class EdgeShape:
     x1: float; y1: float; x2: float; y2: float
     label: Optional[str] = None
     arrow: bool = True             # False = plain line (chart line, tree connector)
+    eid: Optional[str] = None
 
 
 @dataclass
@@ -79,6 +84,7 @@ class Callout:
     tx: float; ty: float      # target point (on the feature)
     lx: float; ly: float      # label anchor (text start)
     side: Literal["left", "right"] = "right"
+    eid: Optional[str] = None
 
 
 @dataclass
@@ -1602,6 +1608,26 @@ def layout_figure(fig: Figure, x: float, y: float, w: float, h: float) -> Figure
     return _layout_flow(fig, x, y, w, h)
 
 
+def assign_eids(items: list) -> list:
+    """WP10: deterministic stable element ids (same JSON -> same eids) so edit
+    overrides survive re-render. Top-level t0.., FigureItem internals f0.r3 etc."""
+    ti = fi = 0
+    for it in items:
+        if isinstance(it, FigureItem):
+            pre = f"f{fi}"; fi += 1
+            for i, s in enumerate(it.shapes):
+                s.eid = f"{pre}.r{i}"
+            for i, e in enumerate(it.edges):
+                e.eid = f"{pre}.e{i}"
+            for i, c in enumerate(it.callouts):
+                c.eid = f"{pre}.c{i}"
+            for i, t in enumerate(it.texts):
+                t.eid = f"{pre}.t{i}"
+        elif isinstance(it, TextItem):
+            it.eid = f"t{ti}"; ti += 1
+    return items
+
+
 def layout_slide(slide: Slide) -> list[DrawItem]:
     items: list[DrawItem] = []
     content_w = SLIDE_W - 2 * MARGIN_X
@@ -1610,7 +1636,7 @@ def layout_slide(slide: Slide) -> list[DrawItem]:
         items.append(TextItem("title", MARGIN_X, 2.6, content_w, 1.6, text=slide.title))
         if slide.subtitle:
             items.append(TextItem("subtitle", MARGIN_X, 4.3, content_w, 1.0, text=slide.subtitle))
-        return items
+        return assign_eids(items)
 
     items.append(TextItem("title", MARGIN_X, TITLE_Y, content_w, TITLE_H, text=slide.title))
     body_h = SLIDE_H - BODY_TOP - 0.45
@@ -1620,4 +1646,4 @@ def layout_slide(slide: Slide) -> list[DrawItem]:
     else:
         items.append(TextItem("bullets", MARGIN_X, BODY_TOP, content_w, body_h,
                               bullets=slide.bullets or []))
-    return items
+    return assign_eids(items)
