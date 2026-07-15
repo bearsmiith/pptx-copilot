@@ -349,6 +349,21 @@ for _name, _ in _ARCH_PRESETS:
     _sl = _build_arch(_name)
     EXAMPLES[_name] = _Deck(title=_sl.title, slides=[_sl])
 
+# WP9: physical assembly recipes (mobile/watch/photonic) single-sourced in assemblies.py
+from assemblies import ASSEMBLIES as _ASM, build_assembly as _build_asm  # noqa: E402
+
+_ASM_PRESETS = [
+    ("smartphone_mainboard", "스마트폰 메인보드 (PoP·쉴드캔)"),
+    ("watch_sip", "워치 SiP 모듈"),
+    ("pop_package", "PoP 패키지 (TMV)"),
+    ("butterfly_laser", "버터플라이 레이저 모듈"),
+    ("cis_module", "CMOS 이미지센서 (BSI 적층)"),
+    ("fiber_attach", "V-groove 파이버 어태치"),
+]
+for _name, _ in _ASM_PRESETS:
+    _sl = _build_asm(_name)
+    EXAMPLES[_name] = _Deck(title=_sl.title, slides=[_sl])
+
 EXAMPLE_META = [
     ("fcbga", "FC-BGA 패키지 단면"),
     ("tgv", "TGV 글라스 기판 (+비교)"),
@@ -359,4 +374,4 @@ EXAMPLE_META = [
     ("cowos", "CoWoS 2.5D (병렬 다이)"),
     ("emib", "EMIB (임베디드 브리지)"),
     ("pcb", "6층 PCB 스택업"),
-] + _DOMAIN_PRESETS + _ARCH_PRESETS
+] + _DOMAIN_PRESETS + _ARCH_PRESETS + _ASM_PRESETS

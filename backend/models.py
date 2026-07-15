@@ -389,6 +389,10 @@ class AssemblyPart(BaseModel):
     emits: bool = False        # optical source facet (laser)
     detects: bool = False      # optical receiver (photodiode)
     buried: bool = False       # drawn as a channel INSIDE the base (waveguide-in-substrate)
+    glyph: Optional[str] = None    # dedicated glyph: shield_can|connector|flex_ribbon|
+                                   #   v_groove|dome_array|bayer_row|chips (else a box)
+    covers: list[str] = Field(default_factory=list,
+                              description="part ids this part encloses (shield can lid)")
 
 
 class AssemblyBeam(BaseModel):

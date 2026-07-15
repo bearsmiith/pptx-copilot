@@ -633,13 +633,24 @@ def generate_brief_slide(prompt: str, direction: str, events: list[dict],
     (returns Slide, None). Direction B nudges an alternative interpretation."""
     from understand import understand
     from compile_brief import compile_brief
-    # The Brief pipeline targets parts-on-substrate optical/mounting ASSEMBLIES
-    # (laser-on-PIC, chip-on-chip, co-packaged optics) — where positioned mounting
-    # matters. Standard packaging stacks (router top = stack) keep their proven
-    # stack/template path (correct BGA-below-substrate, mold, etc.), and
-    # infographics keep WP7. So the pipeline only intercepts photonic-class requests.
+    # WP9: canonical mobile/watch/photonic ASSEMBLY recipes → template-first for
+    # draft A (deterministic, safest for small models); draft B stays LLM.
+    asm = None
+    if not manifest:
+        try:
+            from templates import match_structure
+            from assemblies import ASSEMBLIES, build_assembly
+            asm = next((c for c in match_structure(prompt) if c in ASSEMBLIES), None)
+            if direction == "A" and asm:
+                return build_assembly(asm), None
+        except Exception:
+            asm = None
+    # The Brief pipeline targets parts-on-substrate optical/mounting ASSEMBLIES.
+    # Standard packaging stacks (router top = stack) keep their proven stack/
+    # template path; infographics keep WP7. The pipeline intercepts photonic-class
+    # requests and anything matching an assembly recipe.
     try:
-        if router.classify(prompt, manifest).ranked[0][0] != "photonic":
+        if asm is None and router.classify(prompt, manifest).ranked[0][0] != "photonic":
             return generate_diagram_slide(prompt, direction, events, workdir,
                                           manifest), None
     except Exception:

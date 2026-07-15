@@ -63,4 +63,29 @@ for _name in _ARCH:
     assert not _errs, f"{_name} lint errors: {_errs}"
 print(f"[ok] all {len(_ARCH)} archetype presets lint-clean")
 
+# WP9: golden SVG regression — hash representative presets; a rendering-policy
+# change shows up as a hash diff (regenerate + commit the baseline intentionally).
+import hashlib
+_GOLD_PATH = os.path.join(os.path.dirname(__file__), "..", "tests", "golden_svg.json")
+_GOLD_KEYS = ["fcbga", "hbm", "cowos", "oled", "glass_core_detailed",
+              "timeline", "kpi", "table", "chart", "tree",
+              "smartphone_mainboard", "watch_sip", "cis_module", "fiber_attach",
+              "silicon_photonics_tx", "glass_photonic_pic"]
+_cur = {}
+for _k in _GOLD_KEYS:
+    if _k in EXAMPLES:
+        _svg = render_slide_svg(EXAMPLES[_k].slides[0])
+        _cur[_k] = hashlib.sha256(_svg.encode()).hexdigest()[:16]
+if os.path.exists(_GOLD_PATH):
+    _base = _json.load(open(_GOLD_PATH))
+    _diff = [k for k in _cur if k in _base and _cur[k] != _base[k]]
+    if _diff:
+        print(f"[!!] golden SVG changed: {_diff} — if intended, regenerate "
+              f"tests/golden_svg.json")
+    else:
+        print(f"[ok] golden SVG: {len(_cur)} presets match baseline")
+else:
+    _json.dump(_cur, open(_GOLD_PATH, "w"), indent=1)
+    print(f"[ok] golden SVG baseline written: {len(_cur)} presets")
+
 print("\nALL PASSED")

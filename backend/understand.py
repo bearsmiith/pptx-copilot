@@ -44,7 +44,14 @@ PARTS & MOUNTING (physical) — use REAL assembly facts:
 substrate) and set the top-level "base" to its id. Everything else mounts on it.
 - function keys — bases: pic, substrate, interposer, submount, pcb, leadframe. \
 parts: laser_gain, photodiode, logic_die, modulator, driver_ic, tia, eic, hbm, \
-mems, mlcc, passive, waveguide, lens, fiber, generic.
+mems, mlcc, passive, waveguide, lens, fiber, generic. mobile/watch: ap_pop, \
+dram_pkg, nand, pmic, rf_fem, shield_can, btb_conn, flex_pcb, passive_01005, \
+crystal, sip_module. photonic/sensor: fiber_vgroove, microlens_arr, color_filter, \
+glass_lid. package features: mold, bga.
+- A shield_can sets attributes.covers = [ids of parts it encloses]. PoP = a memory \
+package (dram_pkg) mounted ON the AP (on:"ap"). A bottom-side part sets \
+attributes.side="bottom". Chip-on-chip stacks (pixel on logic, filter on pixel) \
+chain via `on`.
 - A part mounted on the base or on another part sets "on". Chip-on-chip is normal \
 (a laser gain chip mounted ON a PIC → on:"pic").
 - interface.kind = HOW it is joined: "wirebond" (face-up die, pads on top, gold \

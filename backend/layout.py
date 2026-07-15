@@ -1375,6 +1375,55 @@ def _draw_mount(item, p, x0, pw, part_bottom, parent_top):
     # stack / none / edge_couple: nothing under the part
 
 
+def _assembly_glyph(item, glyph, x0, y0, w, h, material, label):
+    """Dedicated assembly glyphs (WP9) — composed from existing primitives."""
+    cx = x0 + w / 2
+    if glyph == "connector":                      # low body + pin teeth on top
+        bh = h * 0.55
+        item.shapes.append(RectShape(x0, y0 + h - bh, w, bh, material=material, rx=0.02,
+                                     inner_label=label, label_size=10))
+        n = 5
+        tw = w / (2 * n)
+        for i in range(n):
+            item.shapes.append(RectShape(x0 + w * (i + 0.5) / n - tw / 2,
+                                         y0 + h - bh - h * 0.3, tw, h * 0.3, material=material))
+    elif glyph == "flex_ribbon":                  # thin flexible band running off-board
+        t = 0.06
+        item.shapes.append(RectShape(x0 - 0.1, y0 + h / 2 - t, w + 0.3, 2 * t,
+                                     material=material, rx=t))
+        item.texts.append(TextItem("caption", x0 - 0.1, y0 + h / 2 + 0.1, w + 0.3, 0.2,
+                                   text=label))
+    elif glyph == "v_groove":                     # trapezoidal groove + fiber in it
+        item.shapes.append(PolyShape([(x0, y0), (x0 + w, y0),
+                                      (x0 + w * 0.62, y0 + h), (x0 + w * 0.38, y0 + h)], material))
+        item.shapes.append(CircleShape(cx, y0 + h * 0.4, min(w, h) * 0.22, material="oxide"))
+        item.texts.append(TextItem("caption", x0 - 0.1, y0 + h + 0.02, w + 0.2, 0.2, text=label))
+    elif glyph == "dome_array":                   # microlens array
+        n = max(3, int(w / 0.16))
+        dw = w / n
+        for i in range(n):
+            item.shapes.append(_dome_poly(x0 + dw * (i + 0.5), y0 + h, dw * 0.46, h * 0.95,
+                                          "glass", up=True))
+        item.texts.append(TextItem("caption", x0, y0 + h + 0.02, w, 0.2, text=label))
+    elif glyph == "bayer_row":                    # alternating color-filter cells
+        n = max(4, int(w / 0.13))
+        cw = w / n
+        cols = ["accent6", "accent2", "accent1", "accent2"]
+        for i in range(n):
+            item.shapes.append(RectShape(x0 + i * cw, y0, cw, h, material=cols[i % 4]))
+        item.texts.append(TextItem("caption", x0, y0 - 0.22, w, 0.2, text=label))
+    elif glyph == "chips":                         # row of tiny passives
+        n = max(3, int(w / 0.09))
+        cw = w / (2 * n)
+        for i in range(n):
+            item.shapes.append(RectShape(x0 + w * (i + 0.5) / n - cw / 2, y0, cw, h,
+                                         material=material))
+        item.texts.append(TextItem("caption", x0 - 0.1, y0 + h + 0.02, w + 0.2, 0.2, text=label))
+    else:
+        item.shapes.append(RectShape(x0, y0, w, h, material=material, rx=0.06,
+                                     inner_label=label, label_size=12))
+
+
 def _layout_assembly(fig: AssemblyFigure, x, y, w, h) -> FigureItem:
     item = FigureItem(x=x, y=y, w=w, h=h)
     parts = fig.parts
@@ -1382,16 +1431,18 @@ def _layout_assembly(fig: AssemblyFigure, x, y, w, h) -> FigureItem:
     avail = h - cap_h
     bx0, bx1 = x + 0.2, x + w - 0.2
     base_w = bx1 - bx0
-    base_h = min(1.05, avail * 0.22)
     top_mounted = [p for p in parts if not p.buried and p.level >= 1 and p.side == "top"]
     bot_parts = [p for p in parts if not p.buried and p.side == "bottom"]
     maxlevel = max([p.level for p in top_mounted], default=1)
-    part_h0 = max(0.55, min(1.2, avail * 0.28))
-    mount_gap = 0.3
-    bottom_space = 0.55 if (fig.bottom_balls or bot_parts) else 0.0
-    mold_pad = 0.28 if fig.mold else 0.0
+    base_h = min(1.0, avail * 0.2 if maxlevel <= 2 else avail * 0.14)
+    bottom_space = 0.5 if (fig.bottom_balls or bot_parts) else 0.0
+    mold_pad = 0.26 if fig.mold else 0.0
+    # part height adapts to stack depth so a tall chip-on-chip stack always fits
+    room = avail - base_h - bottom_space - mold_pad - 0.25
+    mount_gap = 0.3 if maxlevel <= 2 else 0.18
+    part_h0 = max(0.42, min(1.15, room / (maxlevel * 1.0) - mount_gap))
     assembly_h = mold_pad + maxlevel * (part_h0 + mount_gap) + base_h + bottom_space
-    margin = max(0.1, (avail - assembly_h) / 2)     # center vertically
+    margin = max(0.08, (avail - assembly_h) / 2)     # center vertically
     base_bottom = y + avail - margin - bottom_space
     base_top = base_bottom - base_h
 
@@ -1471,15 +1522,38 @@ def _layout_assembly(fig: AssemblyFigure, x, y, w, h) -> FigureItem:
                                      material="mold", rx=0.0))
 
     wires = []
+    shields = []
     for p, x0, pw, top_y, part_bottom, ptop in placed:
+        if p.glyph == "shield_can":               # drawn last as an overlay lid
+            shields.append(p)
+            continue
         _draw_mount(item, p, x0, pw, part_bottom, ptop)
-        item.shapes.append(RectShape(x0, top_y, pw, part_bottom - top_y,
-                                     material=p.material, rx=0.06,
-                                     inner_label=p.label, label_size=12))
+        if p.glyph:
+            _assembly_glyph(item, p.glyph, x0, top_y, pw, part_bottom - top_y,
+                            p.material, p.label)
+        else:
+            item.shapes.append(RectShape(x0, top_y, pw, part_bottom - top_y,
+                                         material=p.material, rx=0.06,
+                                         inner_label=p.label, label_size=12))
         if p.mount == "wirebond":
             wires.append((x0, pw, top_y, ptop))
     for x0, pw, top_y, land in wires:
         _assembly_wire(item, x0, pw, top_y, land)
+    for p in shields:                             # ㄷ-shaped shield-can lid + walls
+        covered = [span[c] for c in p.covers if c in span] or \
+            [b for cid, b in span.items() if cid not in ("__base__",)
+             and cid != p.id]
+        if not covered:
+            continue
+        cx0 = min(b[0] for b in covered) - 0.12
+        cx1 = max(b[1] for b in covered) + 0.12
+        ctop = min(b[2] for b in covered) - 0.16
+        wall = 0.05
+        item.shapes.append(RectShape(cx0, ctop, cx1 - cx0, 0.13, material="leadframe",
+                                     inner_label=p.label, label_size=10))
+        item.shapes.append(RectShape(cx0, ctop, wall, base_top - ctop, material="leadframe"))
+        item.shapes.append(RectShape(cx1 - wall, ctop, wall, base_top - ctop,
+                                     material="leadframe"))
 
     for b in fig.beams:                           # in-plane optical beams
         s, d = span.get(b.src), span.get(b.dst)

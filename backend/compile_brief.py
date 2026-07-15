@@ -90,13 +90,21 @@ def _compile_physical(brief: Brief) -> Slide:
     buried_ids = {p.id for p in buried}
     mounts = [p for p in others if p.id not in buried_ids]
 
-    # level: on base = 1; on a non-base part = 2 (chip-on-chip)
-    def level_of(p):
-        if p.on and p.on != (base.id if base else None) and p.on in {q.id for q in mounts}:
-            return 2
-        return 1
-    lvl1 = [p for p in mounts if level_of(p) == 1]
-    lvl2 = [p for p in mounts if level_of(p) == 2]
+    # TRUE stacking depth via the `on` chain (chip-on-chip-on-chip): follow to
+    # the base so a 4-tier stack gets levels 1..4 (not all "2") — the height
+    # budget depends on this.
+    byid = {p.id: p for p in mounts}
+    base_id = base.id if base else None
+
+    def depth(pid, seen=()):
+        p = byid.get(pid)
+        if (not p or not p.on or p.on == base_id or p.on not in byid or pid in seen):
+            return 1
+        return 1 + depth(p.on, seen + (pid,))
+    levels = {p.id: depth(p.id) for p in mounts}
+    lvl1 = [p for p in mounts if levels[p.id] == 1]
+    deeper = sorted([p for p in mounts if levels[p.id] >= 2],
+                    key=lambda p: levels[p.id])
 
     # order lvl1 left→right by optical flow (emitter left, detector right)
     def flow_key(p):
@@ -124,10 +132,10 @@ def _compile_physical(brief: Brief) -> Slide:
     for p, w, cx in zip(lvl1, widths, centers):
         xpos[p.id] = (cx, w)
         aparts.append(_apart(p, level=1, x_frac=cx, width_frac=w, on=None))
-    for p in lvl2:
+    for p in deeper:                              # chip-on-chip: inherit parent x
         pcx, pw = xpos.get(p.on, (0.5, 0.3))
-        w = min(pw * 0.7, _parts.width(p.function) * scale)
-        aparts.append(_apart(p, level=2, x_frac=pcx, width_frac=w, on=p.on))
+        w = min(pw * 0.82, _parts.width(p.function) * scale)
+        aparts.append(_apart(p, level=levels[p.id], x_frac=pcx, width_frac=w, on=p.on))
         xpos[p.id] = (pcx, w)
     for p in buried:
         lo = min((xpos[q.id][0] for q in lvl1 if (q.attributes or {}).get("emits")),
@@ -163,11 +171,13 @@ def _apart(p: Part, level: int, x_frac: float, width_frac: float, on) -> Assembl
     mount = _MOUNT_MAP.get(iface.kind, "stack") if iface else "stack"
     pad_count = (iface.pad_count if iface and iface.pad_count else 6)
     side = "bottom" if a.get("side") == "bottom" else "top"
+    kn = _parts.get(p.function)
     return AssemblyPart(
         id=p.id, label=p.name, material=_mat(p.function), level=level, side=side,
         on=on, x_frac=round(x_frac, 3), width_frac=round(width_frac, 3),
         mount=mount, pad_count=max(1, min(pad_count, 24)),
-        emits=bool(a.get("emits")), detects=bool(a.get("detects")))
+        emits=bool(a.get("emits")), detects=bool(a.get("detects")),
+        glyph=kn.get("glyph"), covers=list(a.get("covers", []) or []))
 
 
 def _compile_infographic(brief: Brief) -> Slide:

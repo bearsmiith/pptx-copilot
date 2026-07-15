@@ -101,8 +101,13 @@ def instantiate(name: str, params: dict | None = None) -> Slide:
 def match_structure(text: str) -> list[str]:
     """Keyword/aka match a request to candidate structure names (ranked)."""
     t = (text or "").lower()
+    try:
+        from assemblies import ASSEMBLIES
+        _asm = {k: v for k, v in ASSEMBLIES.items()}
+    except Exception:
+        _asm = {}
     scored = []
-    for name, s in {**STRUCTURES, **PHOTONIC_STRUCTURES}.items():
+    for name, s in {**STRUCTURES, **PHOTONIC_STRUCTURES, **_asm}.items():
         score = 0
         for kw in [name] + s.get("aka", []):
             if kw.lower() in t:

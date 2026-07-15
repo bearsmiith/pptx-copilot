@@ -20,7 +20,11 @@ _KW: dict[str, list[str]] = {
               "fcbga", "cowos", "hbm", "tsv", "rdl", "interposer", "인터포저", "oled",
               "tft", "pcb", "via", "범프", "bump", "솔더", "solder", "wafer", "die",
               "다이", "몰드", "mold", "글라스 코어", "glass core", "fan-out", "fanout",
-              "emib", "wirebond", "와이어본드", "적층 구조", "빌드업", "build-up"],
+              "emib", "wirebond", "와이어본드", "적층 구조", "빌드업", "build-up",
+              # WP9 mobile/watch mounting structures (genre=physical)
+              "메인보드", "mainboard", "실장", "pop", "sip", "쉴드캔", "shield can",
+              "shield can", "양면", "logic board", "슬랩", "slp", "워치", "smartwatch",
+              "스마트폰 기판", "btb", "이미지센서", "cis", "마이크로렌즈", "v-groove"],
     "photonic": ["광경로", "광 경로", "포토닉", "photonic", "optical path", "waveguide",
                  "도파로", "실리콘 포토닉", "silicon photonics", "레이저", "laser",
                  "photodiode", "포토다이오드", "grating", "mzm", "ring mod",
